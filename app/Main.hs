@@ -15,14 +15,16 @@ import Lib
 
 -- Export from Excel
 data ExistingMemberFields = ExistingMemberFields {
-    name :: !T.Text -- "AGER, ADAMS"
+    one :: !T.Text -- "1"
+  , name :: !T.Text -- "AGER, ADAMS"
   , join :: !T.Text -- "2018"
   , pay :: !T.Text -- "chq, HLM, OL"
   , typ :: !T.Text -- "J, S, F"
   , clubBoat :: !T.Text -- "1 or blank"
   , dp :: !T.Text -- "dinghy park; 1,2 or blank - number of dinghy park spaces paid for"
-  , rck :: !T.Text -- "rack space; 1,2 or blank - number of rack spaces paid for"
-  , outbrd :: !T.Text -- "outboard; 1 or blank"
+  , rackspace :: !T.Text -- "rack space; 1,2 or blank - number of rack spaces paid for"
+  , locker :: !T.Text -- "1 or blank"
+  , outboard :: !T.Text -- "outboard; 1 or blank"
   , blank1 :: !T.Text
   , dinghyParkAndRackLocation1 :: !T.Text -- D32, K18
   , dinghyParkAndRackLocation2 :: !T.Text -- D32, K18
@@ -44,6 +46,7 @@ data ExistingMemberFields = ExistingMemberFields {
   , locker :: !T.Text -- "blank or L9"
   , outboard :: !T.Text -- "OB" or "July '19"
   , flt1 :: !T.Text -- 1 or blank not sure what it means
+  , duty2015 :: !T.Text -- "O", "OOC", "C", "CC", "H", "HH",  "O", "OO", "OOO", "OC"
   , duty2016 :: !T.Text -- "O", "OOC", "C", "CC", "H", "HH",  "O", "OO", "OOO", "OC"
   , duty2017 :: !T.Text --  as above
   , duty2018 :: !T.Text --  as above
@@ -57,20 +60,20 @@ data ExistingMemberFields = ExistingMemberFields {
   , postcode :: !T.Text
   , telephone :: !T.Text
   , mobile :: !T.Text
-  , emailadress :: !T.Text
+  , emailaddress :: !T.Text
   , dontTouch1 :: !T.Text
   , dontTouchQflt :: !T.Text 
   , dontTouchVolunteerFlt :: !T.Text
   , ood :: !T.Text -- 1 or blank
   , assOod :: !T.Text -- 1 or blank
-  , hlemCrew :: !T.Text -- 1 or blank
+  , helmCrew :: !T.Text -- 1 or blank
   , shoreSupport :: !T.Text -- 1 or blank
   , wpBoats :: !T.Text -- 1 or blank
   , wpFacilities :: !T.Text -- 1 or blank
 } deriving (Generic, Show)
 
-instance Csv.ToNamedRecord ExistingMemberFields
--- instance Csv.FromRecord ExistingMemberFields
+-- instance Csv.FromNamedRecord ExistingMemberFields
+instance Csv.FromRecord ExistingMemberFields
 instance Csv.DefaultOrdered ExistingMemberFields
 
 -- Export for SCM
@@ -150,23 +153,75 @@ data ExportFields = ExportFields {
   , ice_number :: !T.Text -- In Case of Emergency Number
   , medical_info :: !T.Text -- Medical / Dietary info
   } deriving (Generic, Show)
-instance Csv.FromNamedRecord ExportFields
+instance Csv.ToNamedRecord ExportFields
 instance Csv.DefaultOrdered ExportFields
 
+data TestImport = TestImport {
+    one :: !T.Text -- "1"
+  , name :: !T.Text -- "AGER, ADAMS"
+  , join :: !T.Text -- "2018"
+  , pay :: !T.Text -- "chq, HLM, OL"
+  , typ :: !T.Text -- "J, S, F"
+  , clubBoat :: !T.Text -- "1 or blank"
+  , dp :: !T.Text -- "dinghy park; 1,2 or blank - number of dinghy park spaces paid for"
+  , rackspace :: !T.Text -- "rack space; 1,2 or blank - number of rack spaces paid for"
+  , locker :: !T.Text -- "1 or blank"
+  , outboard :: !T.Text -- "outboard; 1 or blank"
+  , blank1 :: !T.Text
+  , dinghyParkAndRackLocation1 :: !T.Text -- D32, K18
+  , dinghyParkAndRackLocation2 :: !T.Text -- D32, K18
+  , dinghyParkAndRackLocation3 :: !T.Text -- D32, K18
+  , dinghyParkAndRackLocation4 :: !T.Text -- D32, K18  only saw 3 being used ie 4, 5 and 6 where blank
+  , dinghyParkAndRackLocation5 :: !T.Text -- D32, K18
+  , dinghyParkAndRackLocation6 :: !T.Text -- D32, K18
+} deriving (Generic, Show)
+
+-- instance Csv.FromRecord TestImport
+instance Csv.DefaultOrdered TestImport
+
+instance Csv.FromRecord TestImport where
+    parseRecord r = 
+      TestImport 
+        <$> r .! 0
+        <*> r .! 1 
+        <*> r .! 2
+        <*> r .! 3
+        <*> r .! 4 
+        <*> r .! 5
+        <*> r .! 6 
+        <*> r .! 7
+        <*> r .! 8
+        <*> r .! 9 
+        <*> r .! 10
+        <*> r .! 11
+        <*> r .! 12
+        <*> r .! 13
+        <*> r .! 14
+        <*> r .! 15
+        <*> r .! 16
+
+
+testReadCSVLines filePath = do
+  csvData <- BL.readFile filePath
+  case Csv.decode {-Csv.HasHeader-} Csv.NoHeader csvData  :: Either String (V.Vector TestImport) of
+--   case Csv.decodeByName csvData  :: Either String (Csv.Header, V.Vector ExistingMemberFields) of
+          Left err -> do
+            putStrLn err
+            return V.empty
+          Right v -> return v
 
 readCSVLines filePath = do
   csvData <- BL.readFile filePath
---   case Csv.decode Csv.HasHeader csvData  :: Either String (V.Vector TestFields) of
-  case Csv.decodeByName csvData  :: Either String (Csv.Header, V.Vector TestFields) of
-
+  case Csv.decode {-Csv.HasHeader-} Csv.NoHeader csvData  :: Either String (V.Vector ExistingMemberFields) of
+--   case Csv.decodeByName csvData  :: Either String (Csv.Header, V.Vector ExistingMemberFields) of
           Left err -> do
             putStrLn err
-            return (V.empty, V.empty)
+            return V.empty
           Right v -> return v
 
 main :: IO ()
 main = do
-    (header, csvLines) <- readCSVLines "/Users/nickager/programming/SGBAMembersSCMImport/originalData/testData.csv"
-    print header
-    print csvLines
+    -- csvLines <- testReadCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019.csv"
+    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019.csv"
+    print $ V.head csvLines
     return ()
