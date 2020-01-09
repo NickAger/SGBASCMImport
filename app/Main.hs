@@ -168,5 +168,6 @@ readCSVLines filePath = do
 main :: IO ()
 main = do
     csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019.csv"
+    let filteredBlankLines = V.filter (\member -> T.null (adultNames member)) csvLines   
     print csvLines
     return ()
