@@ -9,6 +9,7 @@ import qualified System.Environment as Env
 import qualified Data.Csv as Csv
 import Data.Csv ((.!))
 import qualified Data.Vector as V
+import Data.Vector ((!))
 import qualified Data.ByteString.Lazy as BL
 import GHC.Generics
 import Lib
@@ -159,7 +160,7 @@ membershipType :: ExistingMemberFields -> T.Text
 membershipType ExistingMemberFields{typ = "J"} = "Joint"
 membershipType ExistingMemberFields{typ = "S"} = "Single"
 membershipType ExistingMemberFields{typ = "F"} = "Family Membership"
-membershipType ExistingMemberFields{typ = "HLM"} = "Honorary Life Membership"
+membershipType ExistingMemberFields{typ = "HLM"} = "Honorary Life Member"
 membershipType _ = undefined
 
 data ExportSummary = ExportSummary {
@@ -187,7 +188,7 @@ readCSVLines filePath = do
 
 main :: IO ()
 main = do
-    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019.csv"
+    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv"
     let filteredBlankLines = V.filter (\member -> T.null (adultNames member)) csvLines   
     print csvLines
     return ()
