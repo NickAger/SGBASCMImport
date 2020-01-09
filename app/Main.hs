@@ -155,6 +155,26 @@ data ExportFields = ExportFields {
 instance Csv.ToNamedRecord ExportFields
 instance Csv.DefaultOrdered ExportFields
 
+membershipType :: ExistingMemberFields -> T.Text
+membershipType ExistingMemberFields{typ = "J"} = "Joint"
+membershipType ExistingMemberFields{typ = "S"} = "Single"
+membershipType ExistingMemberFields{typ = "F"} = "Family Membership"
+membershipType ExistingMemberFields{typ = "HLM"} = "Honorary Life Membership"
+membershipType _ = undefined
+
+data ExportSummary = ExportSummary {
+    full_name :: !T.Text 
+  , email :: !T.Text
+  , phone :: !T.Text
+  , mobile :: !T.Text
+  , street :: !T.Text -- address1
+  , locality :: !T.Text -- address2
+  , city :: !T.Text -- town
+  , county :: !T.Text -- county
+  , postcode :: !T.Text --  postcode  
+} deriving (Generic, Show)
+
+-- createExportField 
 
 readCSVLines filePath = do
   csvData <- BL.readFile filePath
