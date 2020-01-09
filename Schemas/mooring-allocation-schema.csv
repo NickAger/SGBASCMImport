@@ -1,0 +1,4 @@
+membership_number,original id,title,first_name,last_name,sail_number,boat,boat_original_id,mooring_group,mooring_space,mooring_space_original_id,from,until,mooring_price,import_non_billable
+-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+Membership number,Contact (Original ID),Title,First name,Last name,Sail number,Boat (Name),Boat (Original ID),Mooring group (Name),Mooring space (Name),Mooring space (Original ID),Mooring from,Mooring until,Mooring price (Name),Do not bill
+,,,,,,,,,,,,,,

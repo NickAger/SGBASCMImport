@@ -1,0 +1,39 @@
+library:
+  source-dirs: src
+tests:
+  SGBASCMImport-test:
+    source-dirs: test
+    main: Spec.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - SGBASCMImport
+copyright: Rocketbox Ltd
+maintainer: nick.ager@gmail.com
+dependencies:
+- bytestring
+- text
+- cassava
+- vector
+- base >= 4.7 && < 5
+name: SGBASCMImport
+version: 0.1.0.0
+extra-source-files:
+- README.md
+- ChangeLog.md
+author: Nick Ager
+github: nickager/SGBASCMImport
+license: BSD3
+executables:
+  SGBASCMImport-exe:
+    source-dirs: app
+    main: Main.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - SGBASCMImport
+description: Please see the README on GitHub at <https://github.com/nickager/SGBASCMImport#readme>
