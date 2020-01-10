@@ -163,6 +163,30 @@ membershipType ExistingMemberFields{typ = "F"} = "Family Membership"
 membershipType ExistingMemberFields{typ = "HLM"} = "Honorary Life Member"
 membershipType _ = undefined
 
+membershipStarted :: ExistingMemberFields -> T.Text
+membershipStarted member = "01/03/" `T.append` join member
+
+splitChildrensNames :: ExistingMemberFields -> [T.Text]
+splitChildrensNames member
+  | T.null names = []
+  | length splitOnComma > 1 = splitOnComma
+  | length splitOnAmpersand > 1 = splitOnAmpersand
+  | otherwise = [names]
+  where
+    names = T.strip $ childrensNames member
+    splitOnComma = splitOn ","
+    splitOnAmpersand = splitOn "&"
+    splitOn separator = 
+      let splitNames = T.splitOn separator names
+      in
+        map T.strip splitNames
+
+bmiTell bmi  
+    | bmi <= 18.5 = "You're underweight, you emo, you!"  
+    | bmi <= 25.0 = "You're supposedly normal. Pffft, I bet you're ugly!"  
+    | bmi <= 30.0 = "You're fat! Lose some weight, fatty!"  
+    | otherwise   = "You're a whale, congratulations!" 
+
 data ExportSummary = ExportSummary {
     full_name :: !T.Text 
   , email :: !T.Text
@@ -173,6 +197,10 @@ data ExportSummary = ExportSummary {
   , city :: !T.Text -- town
   , county :: !T.Text -- county
   , postcode :: !T.Text --  postcode  
+  , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
+  , membership_number :: !T.Text -- same number if part of same membership
+  , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
+  , login_email :: !T.Text -- need to consider what we do with kids that don't have email addresses
 } deriving (Generic, Show)
 
 -- createExportField 
