@@ -12,6 +12,7 @@ import qualified Data.Vector as V
 import Data.Vector ((!))
 import qualified Data.ByteString.Lazy as BL
 import GHC.Generics
+import Data.List
 import Lib
 
 -- Export from Excel
@@ -161,10 +162,20 @@ membershipType ExistingMemberFields{typ = "J"} = "Joint"
 membershipType ExistingMemberFields{typ = "S"} = "Single"
 membershipType ExistingMemberFields{typ = "F"} = "Family Membership"
 membershipType ExistingMemberFields{typ = "HLM"} = "Honorary Life Member"
-membershipType _ = undefined
+membershipType ExistingMemberFields{typ = "HAM"} = "Honorary Annual Member"
+membershipType member = error $ "unknown membership type:" ++ (T.unpack $ typ member)
 
 membershipStarted :: ExistingMemberFields -> T.Text
 membershipStarted member = "01/03/" `T.append` join member
+
+
+extractChildrensNames :: ExistingMemberFields -> [T.Text]
+extractChildrensNames member = map addLastName (splitChildrensNames member)
+  where
+    addLastName name
+      | containsSpace name = name
+      | otherwise = T.intercalate " " [name, lastName member]
+    containsSpace =  T.any (== ' ')
 
 splitChildrensNames :: ExistingMemberFields -> [T.Text]
 splitChildrensNames member
@@ -181,11 +192,27 @@ splitChildrensNames member
       in
         map T.strip splitNames
 
-bmiTell bmi  
-    | bmi <= 18.5 = "You're underweight, you emo, you!"  
-    | bmi <= 25.0 = "You're supposedly normal. Pffft, I bet you're ugly!"  
-    | bmi <= 30.0 = "You're fat! Lose some weight, fatty!"  
-    | otherwise   = "You're a whale, congratulations!" 
+lastName :: ExistingMemberFields -> T.Text
+lastName member
+  | T.null theName = error $ "unexpected last name doesn't exist: " ++ (show member)
+  | containsSeparator ' ' = stripSeparator ' '
+  | containsSeparator '.' = stripSeparator '.'
+  | otherwise = theName
+  where
+    theName = T.toTitle $ T.strip $ name member
+    containsSeparator sep = T.any (== sep) theName
+    stripSeparator sep = T.takeWhile (/= sep) theName
+
+
+groupByMembership :: V.Vector ExistingMemberFields -> [[ExistingMemberFields]]
+groupByMembership members = 
+  let
+    membersList = V.toList members
+  in
+    groupBy (\member1 member2 -> (not $ T.null (name member1)) && (T.null (name member2))) membersList
+
+namedGrouped :: [[ExistingMemberFields]] -> [[T.Text]]
+namedGrouped = map (map adultNames)
 
 data ExportSummary = ExportSummary {
     full_name :: !T.Text 
@@ -216,7 +243,8 @@ readCSVLines filePath = do
 
 main :: IO ()
 main = do
-    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv"
-    let filteredBlankLines = V.filter (\member -> T.null (adultNames member)) csvLines   
-    print csvLines
+    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv" 
+    let filteredBlankLines = V.filter (\member -> not $ T.null (adultNames member)) csvLines
+    let groupedMembers = groupByMembership filteredBlankLines
+    print $ namedGrouped groupedMembers
     return ()
