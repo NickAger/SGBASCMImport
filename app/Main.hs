@@ -163,7 +163,7 @@ membershipType ExistingMemberFields{typ = "S"} = "Single"
 membershipType ExistingMemberFields{typ = "F"} = "Family Membership"
 membershipType ExistingMemberFields{typ = "HLM"} = "Honorary Life Member"
 membershipType ExistingMemberFields{typ = "HAM"} = "Honorary Annual Member"
-membershipType member = error $ "unknown membership type:" ++ (T.unpack $ typ member)
+membershipType member = error $ "unknown membership type: '" ++ show member
 
 membershipStarted :: ExistingMemberFields -> T.Text
 membershipStarted member = "01/03/" `T.append` join member
@@ -225,10 +225,51 @@ data ExportSummary = ExportSummary {
   , county :: !T.Text -- county
   , postcode :: !T.Text --  postcode  
   , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
-  , membership_number :: !T.Text -- same number if part of same membership
+  -- , membership_number :: !T.Text -- same number if part of same membership
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
   , login_email :: !T.Text -- need to consider what we do with kids that don't have email addresses
+  -- , original_id :: !T.Text
 } deriving (Generic, Show)
+
+translateMembers :: [ExistingMemberFields] -> [ExportSummary]
+translateMembers members = 
+  (map (translateMember primaryMember) members) ++ (map (createChildEntry primaryMember) (extractChildrensNames primaryMember))
+  where
+    primaryMember = head members
+
+translateMember :: ExistingMemberFields -> ExistingMemberFields -> ExportSummary
+translateMember primaryMember member =
+  ExportSummary {
+      full_name = adultNames member
+    , email = emailaddress member
+    , phone = telephone primaryMember
+    , mobile = (mobile :: ExistingMemberFields -> T.Text) member
+    , street = address1 primaryMember
+    , locality = address2 primaryMember
+    , city = town primaryMember
+    , county = (county :: ExistingMemberFields -> T.Text) primaryMember
+    , postcode = (postcode :: ExistingMemberFields -> T.Text) primaryMember 
+    , membership_started = membershipStarted primaryMember
+    , membership_type = membershipType primaryMember
+    , login_email = emailaddress member
+  }
+
+createChildEntry :: ExistingMemberFields -> T.Text -> ExportSummary
+createChildEntry member theName =
+   ExportSummary {
+      full_name = theName
+    , email = ""
+    , phone = telephone member
+    , mobile = ""
+    , street = address1 member
+    , locality = address2 member
+    , city = town member
+    , county = (county :: ExistingMemberFields -> T.Text) member
+    , postcode = (postcode :: ExistingMemberFields -> T.Text) member 
+    , membership_started = membershipStarted member
+    , membership_type = membershipType member
+    , login_email = ""
+  } 
 
 -- createExportField 
 
@@ -246,5 +287,7 @@ main = do
     csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv" 
     let filteredBlankLines = V.filter (\member -> not $ T.null (adultNames member)) csvLines
     let groupedMembers = groupByMembership filteredBlankLines
-    print $ namedGrouped groupedMembers
+    let groupedTranslatedMembers = map translateMembers groupedMembers
+    print groupedTranslatedMembers
+    -- print $ namedGrouped groupedMembers
     return ()
