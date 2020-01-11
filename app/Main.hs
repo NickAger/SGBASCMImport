@@ -118,7 +118,7 @@ data ExportFields = ExportFields {
   , bank_branch :: !T.Text -- IGNORE
   , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
   , membership_ended :: !T.Text -- CHECK, not sure if we want to enter expired members????
-  , membership_number :: !T.Text -- same number if part of same membership
+  , membership_number :: Int -- same number if part of same membership
   , membership_reference :: !T.Text -- ???
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
   , membership_type_original_id :: !T.Text -- IGNORE ???
@@ -141,7 +141,7 @@ data ExportFields = ExportFields {
   , mooring_until :: !T.Text -- start of next seasons membership???
   , rya_number :: !T.Text -- IGNORE
   , ya_number :: !T.Text -- IGNORE
-  , original_id :: !T.Text -- ignore
+  , original_id :: Int -- ignore
   , content :: !T.Text -- ignore
   , summary :: !T.Text -- ignore
   , description :: !T.Text -- ignore
@@ -170,6 +170,9 @@ membershipType member = error $ "unknown membership type: '" ++ show member
 membershipStarted :: ExistingMemberFields -> T.Text
 membershipStarted member = "01/03/" `T.append` ((join :: ExistingMemberFields -> T.Text) member)
 
+exportBool :: Bool -> T.Text
+exportBool True = "true"
+exportBool False = "false"
 
 extractChildrensNames :: ExistingMemberFields -> [T.Text]
 extractChildrensNames member = map addLastName (splitChildrensNames member)
@@ -224,7 +227,7 @@ data ExportSummary = ExportSummary {
   , county :: !T.Text -- county
   , postcode :: !T.Text --  postcode  
   , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
-  , membership_number :: !T.Text -- same number if part of same membership
+  , membership_number :: Int -- same number if part of same membership
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
   , membership_is_primary :: Bool
 } deriving (Generic, Show)
@@ -247,7 +250,7 @@ translateMembers members =
     updateMembers membershipNum = map (updateMembershipNumber membershipNum)
 
     updateMembershipNumber :: Int -> ExportSummary -> ExportSummary
-    updateMembershipNumber membershipNum summary = summary{ membership_number = T.pack $ show membershipNum }
+    updateMembershipNumber membershipNum summary = summary{ membership_number = membershipNum }
 
 
 translateMember :: ExistingMemberFields -> ExistingMemberFields -> ExportSummary
@@ -262,7 +265,7 @@ translateMember primaryMember member =
     , city = town primaryMember
     , county = (county :: ExistingMemberFields -> T.Text) primaryMember
     , postcode = (postcode :: ExistingMemberFields -> T.Text) primaryMember
-    , membership_number = ""
+    , membership_number = -1
     , membership_started = membershipStarted primaryMember
     , membership_type = membershipType primaryMember
     , membership_is_primary = (primaryMember == member)
@@ -309,14 +312,14 @@ prepareForExport summary memId =
     , bank_branch = ""
     , membership_started = (membership_started :: ExportSummary -> T.Text) summary
     , membership_ended = ""
-    , membership_number = (membership_number :: ExportSummary -> T.Text) summary
+    , membership_number = (membership_number :: ExportSummary -> Int) summary
     , membership_reference = ""
     , membership_type = (membership_type :: ExportSummary -> T.Text) summary
     , membership_type_original_id = ""
     , pay_method = ""
     , membership_frozen = ""
     , mem_frozen_amount = ""
-    , membership_is_primary = T.pack $ show $ (membership_is_primary :: ExportSummary -> Bool) summary
+    , membership_is_primary = exportBool $ (membership_is_primary :: ExportSummary -> Bool) summary
     , concession = ""
     , boat = ""
     , boat_id = ""
@@ -332,7 +335,7 @@ prepareForExport summary memId =
     , mooring_until = ""
     , rya_number = ""
     , ya_number = ""
-    , original_id = T.pack $ show memId
+    , original_id = memId
     , content = ""
     , summary = ""
     , description = "" 
@@ -360,7 +363,7 @@ createChildEntry member theName =
     , city = town member
     , county = (county :: ExistingMemberFields -> T.Text) member
     , postcode = (postcode :: ExistingMemberFields -> T.Text) member
-    , membership_number = ""
+    , membership_number = -1
     , membership_started = membershipStarted member
     , membership_type = membershipType member
     , membership_is_primary = False
