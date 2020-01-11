@@ -13,6 +13,7 @@ import Data.Vector ((!))
 import qualified Data.ByteString.Lazy as BL
 import GHC.Generics
 import Data.List
+import qualified Control.Monad as CM
 import Lib
 
 -- Export from Excel
@@ -64,7 +65,7 @@ data ExistingMemberFields = ExistingMemberFields {
   , mobile :: !T.Text
   , emailaddress :: !T.Text
   , dontTouch1 :: !T.Text
-  , dontTouchQflt :: !T.Text 
+  , dontTouchQflt :: !T.Text
   , dontTouchVolunteerFlt :: !T.Text
   , ood :: !T.Text -- 1 or blank
   , assOod :: !T.Text -- 1 or blank
@@ -72,13 +73,13 @@ data ExistingMemberFields = ExistingMemberFields {
   , shoreSupport :: !T.Text -- 1 or blank
   , wpBoats :: !T.Text -- 1 or blank
   , wpFacilities :: !T.Text -- 1 or blank
-} deriving (Generic, Show)
+} deriving (Generic, Show, Eq)
 
 instance Csv.FromRecord ExistingMemberFields
 instance Csv.DefaultOrdered ExistingMemberFields
 
 -- Export for SCM
-data ExportFields = ExportFields { 
+data ExportFields = ExportFields {
     uid :: !T.Text -- Only used to identify existing records if reimporting exported data that has been updated.  This is the Unique ID created when a Contact is initially added or imported.
   , title :: !T.Text -- IGNORE; not in existing data
   , first_name :: !T.Text -- extract from Adult Names, Childrens names
@@ -94,7 +95,7 @@ data ExportFields = ExportFields {
   , dod :: !T.Text -- "Prevents inappropriate communications being sent by suppressing mailings to deceased contacts."
   , email :: !T.Text
   , primary_email :: !T.Text -- IGNORE
-  , phone :: !T.Text 
+  , phone :: !T.Text
   , mobile :: !T.Text
   , fax :: !T.Text -- IGNORE
   , url :: !T.Text -- IGNORE
@@ -107,6 +108,7 @@ data ExportFields = ExportFields {
   , city :: !T.Text -- town
   , county :: !T.Text -- county
   , postcode :: !T.Text --  postcode
+  , country :: !T.Text -- IGNORE
   , latitude :: !T.Text -- IGNORE
   , longitude :: !T.Text -- IGNORE
   , bank_account_name :: !T.Text -- IGNORE
@@ -166,7 +168,7 @@ membershipType ExistingMemberFields{typ = "HAM"} = "Honorary Annual Member"
 membershipType member = error $ "unknown membership type: '" ++ show member
 
 membershipStarted :: ExistingMemberFields -> T.Text
-membershipStarted member = "01/03/" `T.append` join member
+membershipStarted member = "01/03/" `T.append` ((join :: ExistingMemberFields -> T.Text) member)
 
 
 extractChildrensNames :: ExistingMemberFields -> [T.Text]
@@ -187,7 +189,7 @@ splitChildrensNames member
     names = T.strip $ childrensNames member
     splitOnComma = splitOn ","
     splitOnAmpersand = splitOn "&"
-    splitOn separator = 
+    splitOn separator =
       let splitNames = T.splitOn separator names
       in
         map T.strip splitNames
@@ -205,17 +207,14 @@ lastName member
 
 
 groupByMembership :: V.Vector ExistingMemberFields -> [[ExistingMemberFields]]
-groupByMembership members = 
+groupByMembership members =
   let
     membersList = V.toList members
   in
     groupBy (\member1 member2 -> (not $ T.null (name member1)) && (T.null (name member2))) membersList
 
-namedGrouped :: [[ExistingMemberFields]] -> [[T.Text]]
-namedGrouped = map (map adultNames)
-
 data ExportSummary = ExportSummary {
-    full_name :: !T.Text 
+    full_name :: !T.Text
   , email :: !T.Text
   , phone :: !T.Text
   , mobile :: !T.Text
@@ -225,17 +224,31 @@ data ExportSummary = ExportSummary {
   , county :: !T.Text -- county
   , postcode :: !T.Text --  postcode  
   , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
-  -- , membership_number :: !T.Text -- same number if part of same membership
+  , membership_number :: !T.Text -- same number if part of same membership
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
-  , login_email :: !T.Text -- need to consider what we do with kids that don't have email addresses
-  -- , original_id :: !T.Text
+  , membership_is_primary :: Bool
 } deriving (Generic, Show)
 
-translateMembers :: [ExistingMemberFields] -> [ExportSummary]
-translateMembers members = 
-  (map (translateMember primaryMember) members) ++ (map (createChildEntry primaryMember) (extractChildrensNames primaryMember))
+translateMembers :: [[ExistingMemberFields]] -> [[ExportSummary]]
+translateMembers members =
+    map (\(mems, membershipId) -> updateMembers membershipId mems) translatedMembershipsWithId
   where
-    primaryMember = head members
+    translatedMembership :: [ExistingMemberFields] -> [ExportSummary]
+    translatedMembership mems = (map (translateMember primaryMember) mems) ++ (map (createChildEntry primaryMember) (extractChildrensNames primaryMember))
+      where
+          primaryMember = head mems
+
+    translateMemberships :: [[ExportSummary]]
+    translateMemberships = map translatedMembership members
+
+    translatedMembershipsWithId = zip translateMemberships [100..]
+
+    updateMembers :: Int -> [ExportSummary] -> [ExportSummary]
+    updateMembers membershipNum = map (updateMembershipNumber membershipNum)
+
+    updateMembershipNumber :: Int -> ExportSummary -> ExportSummary
+    updateMembershipNumber membershipNum summary = summary{ membership_number = T.pack $ show membershipNum }
+
 
 translateMember :: ExistingMemberFields -> ExistingMemberFields -> ExportSummary
 translateMember primaryMember member =
@@ -248,11 +261,92 @@ translateMember primaryMember member =
     , locality = address2 primaryMember
     , city = town primaryMember
     , county = (county :: ExistingMemberFields -> T.Text) primaryMember
-    , postcode = (postcode :: ExistingMemberFields -> T.Text) primaryMember 
+    , postcode = (postcode :: ExistingMemberFields -> T.Text) primaryMember
+    , membership_number = ""
     , membership_started = membershipStarted primaryMember
     , membership_type = membershipType primaryMember
-    , login_email = emailaddress member
+    , membership_is_primary = (primaryMember == member)
   }
+
+prepareForExport :: ExportSummary -> Int -> ExportFields
+prepareForExport summary memId =
+  ExportFields {
+      uid = ""
+    , title = ""
+    , first_name = ""
+    , middle_name = ""
+    , last_name = ""
+    , full_name = (full_name :: ExportSummary -> T.Text) summary 
+    , suffix = ""
+    , nickname = ""
+    , gender = ""
+    , company_name = ""
+    , job_title = ""
+    , dob = ""
+    , dod = ""
+    , email = (email :: ExportSummary -> T.Text)  summary 
+    , primary_email = (email :: ExportSummary -> T.Text) summary 
+    , phone = (phone :: ExportSummary -> T.Text) summary 
+    , mobile = (mobile :: ExportSummary -> T.Text) summary 
+    , fax = ""
+    , url = ""
+    , twitter = ""
+    , facebook = ""
+    , skype = ""
+    , linkedin = ""
+    , street = (street :: ExportSummary -> T.Text) summary
+    , locality = (locality :: ExportSummary -> T.Text) summary
+    , city = (city :: ExportSummary -> T.Text) summary
+    , county = (county :: ExportSummary -> T.Text) summary
+    , postcode = (postcode :: ExportSummary -> T.Text) summary
+    , country = ""
+    , latitude = ""
+    , longitude = ""
+    , bank_account_name = ""
+    , bank_number = ""
+    , bank_sort = ""
+    , bank_name = ""
+    , bank_branch = ""
+    , membership_started = (membership_started :: ExportSummary -> T.Text) summary
+    , membership_ended = ""
+    , membership_number = (membership_number :: ExportSummary -> T.Text) summary
+    , membership_reference = ""
+    , membership_type = (membership_type :: ExportSummary -> T.Text) summary
+    , membership_type_original_id = ""
+    , pay_method = ""
+    , membership_frozen = ""
+    , mem_frozen_amount = ""
+    , membership_is_primary = T.pack $ show $ (membership_is_primary :: ExportSummary -> Bool) summary
+    , concession = ""
+    , boat = ""
+    , boat_id = ""
+    , boat_ids = ""
+    , boat_type = ""
+    , boat_class = ""
+    , boat_model = ""
+    , boat_number = ""
+    , boat_colour = ""
+    , boat_tcc = ""
+    , boat_clyde_mph = ""
+    , mooring = ""
+    , mooring_until = ""
+    , rya_number = ""
+    , ya_number = ""
+    , original_id = T.pack $ show memId
+    , content = ""
+    , summary = ""
+    , description = "" 
+    , password = ""
+    , uuid = ""
+    , tag = ""-- "Committee Member/Safety boat assessed"  (but it only contains a single tag)
+    , subs_paid_by = ""
+    , invoices_paid_by = ""
+    , affiliate_code = ""
+    , login_email = (email :: ExportSummary -> T.Text) summary 
+    , ice_name = ""
+    , ice_number = ""
+    , medical_info = ""
+  }  
 
 createChildEntry :: ExistingMemberFields -> T.Text -> ExportSummary
 createChildEntry member theName =
@@ -265,11 +359,12 @@ createChildEntry member theName =
     , locality = address2 member
     , city = town member
     , county = (county :: ExistingMemberFields -> T.Text) member
-    , postcode = (postcode :: ExistingMemberFields -> T.Text) member 
+    , postcode = (postcode :: ExistingMemberFields -> T.Text) member
+    , membership_number = ""
     , membership_started = membershipStarted member
     , membership_type = membershipType member
-    , login_email = ""
-  } 
+    , membership_is_primary = False
+  }
 
 -- createExportField 
 
@@ -279,15 +374,18 @@ readCSVLines filePath = do
       Left err -> do
         error "failed to read file:"
         putStrLn err
-        undefined 
+        undefined
       Right v -> return v
 
 main :: IO ()
 main = do
-    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv" 
+    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv"
     let filteredBlankLines = V.filter (\member -> not $ T.null (adultNames member)) csvLines
     let groupedMembers = groupByMembership filteredBlankLines
-    let groupedTranslatedMembers = map translateMembers groupedMembers
-    print groupedTranslatedMembers
-    -- print $ namedGrouped groupedMembers
+    let groupedTranslatedMembers = translateMembers groupedMembers
+    let flattenedTranslatedMembers = CM.join groupedTranslatedMembers
+    let readyForExport = map (\(mem, memid) -> prepareForExport mem memid) (zip flattenedTranslatedMembers [1..])
+    let exportedData = Csv.encodeDefaultOrderedByName readyForExport
+
+    BL.writeFile "/Users/nickager/programming/SGBASCMImport/exported.csv"  exportedData
     return ()
