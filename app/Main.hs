@@ -128,8 +128,8 @@ data ExportFields = ExportFields {
   , membership_is_primary :: !T.Text -- [Y|N] ???
   , concession :: !T.Text -- IGNORE
   , boat :: !T.Text -- Boat Name use "AGER1" etc
-  , boat_id :: !T.Text --   ??
-  , boat_ids :: !T.Text -- ??
+  , boat_id :: !T.Text --  NOT used when importing
+  , boat_ids :: !T.Text -- NOT used when importing
   , boat_type :: !T.Text -- IGNORE
   , boat_class :: !T.Text -- IGNORE
   , boat_model :: !T.Text -- IGNORE
@@ -313,7 +313,7 @@ prepareForExport summary memId =
     , membership_started = (membership_started :: ExportSummary -> T.Text) summary
     , membership_ended = ""
     , membership_number = (membership_number :: ExportSummary -> Int) summary
-    , membership_reference = ""
+    , membership_reference = (membership_number :: ExportSummary -> Int) summary
     , membership_type = (membership_type :: ExportSummary -> T.Text) summary
     , membership_type_original_id = ""
     , pay_method = ""
