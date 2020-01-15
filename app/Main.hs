@@ -42,6 +42,7 @@ data ExistingMemberFields = ExistingMemberFields {
   , safetyBoard :: !T.Text -- 1 or blank  -- seems to be blank
   , firstAid :: !T.Text -- 1 or blank -- seems to be blank
   , blank3 :: !T.Text
+  , localMember :: !T.Text
   , adultNames :: !T.Text -- "Roger Acton"
   , blank4 :: !T.Text -- the whole column is "1" why??
   , childrensNames :: !T.Text -- "Sasha, Ted" (but lots missing) and differing spacing between sometimes "&", sometimes ",", sometimes a space
@@ -119,7 +120,7 @@ data ExportFields = ExportFields {
   , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
   , membership_ended :: !T.Text -- CHECK, not sure if we want to enter expired members????
   , membership_number :: Int -- same number if part of same membership
-  , membership_reference :: !T.Text -- ???
+  , membership_reference :: Int -- needs to be same as `membership_number`
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
   , membership_type_original_id :: !T.Text -- IGNORE ???
   , pay_method :: !T.Text -- "Pay" ???
@@ -147,7 +148,9 @@ data ExportFields = ExportFields {
   , description :: !T.Text -- ignore
   , password :: !T.Text -- ignore
   , uuid :: !T.Text -- ignore
-  , tag :: !T.Text -- "Committee Member/Safety boat assessed"  (but it only contains a single tag)
+  , tag1 :: !T.Text -- "Committee Member/Safety boat assessed"  (but it only contains a single tag)
+  , tag2 :: !T.Text -- uo to 10 tags per person.
+  , tag3 :: !T.Text
   , subs_paid_by :: !T.Text -- Expects Original ID of Contact (used when first importing data from legacy system).
   , invoices_paid_by :: !T.Text -- needs UID only when reimporting
   , affiliate_code :: !T.Text -- IGNORE
@@ -173,6 +176,25 @@ membershipStarted member = "01/03/" `T.append` ((join :: ExistingMemberFields ->
 exportBool :: Bool -> T.Text
 exportBool True = "true"
 exportBool False = "false"
+
+pb2QualificationTag :: ExistingMemberFields -> [T.Text]
+pb2QualificationTag ExistingMemberFields{pb2valid = "A"} = ["PB2 certificate copy"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "B"} = ["PB2 course completed"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "C"} = ["PB2 claimed"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "D"} = ["PB2 equivalent"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "E"} = ["PB2 equivalent no helm"]
+pb2QualificationTag ExistingMemberFields{pb2valid = ""} = []
+pb2QualificationTag member = error $ "unknown PB2 qualification: '" ++ show member
+
+isPBBookable :: ExistingMemberFields -> [T.Text]
+isPBBookable ExistingMemberFields{pbReg = "1"} = ["PB Bookable"]
+isPBBookable ExistingMemberFields{pbReg = ""} = []
+isPBBookable member = error $ "unknown pbReg field: '" ++ show member
+
+isLocalTag :: ExistingMemberFields -> [T.Text]
+isLocalTag ExistingMemberFields{localMember = "1"} = ["Local Member"]
+isLocalTag ExistingMemberFields{localMember = ""} = []
+isLocalTag member = error $ "unknown localMember field: '" ++ show member
 
 extractChildrensNames :: ExistingMemberFields -> [T.Text]
 extractChildrensNames member = map addLastName (splitChildrensNames member)
@@ -230,6 +252,7 @@ data ExportSummary = ExportSummary {
   , membership_number :: Int -- same number if part of same membership
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
   , membership_is_primary :: Bool
+  , tags :: [T.Text]
 } deriving (Generic, Show)
 
 translateMembers :: [[ExistingMemberFields]] -> [[ExportSummary]]
@@ -269,6 +292,7 @@ translateMember primaryMember member =
     , membership_started = membershipStarted primaryMember
     , membership_type = membershipType primaryMember
     , membership_is_primary = (primaryMember == member)
+    , tags = (pb2QualificationTag member) ++ (isPBBookable member) ++ (isLocalTag member)
   }
 
 prepareForExport :: ExportSummary -> Int -> ExportFields
@@ -341,7 +365,9 @@ prepareForExport summary memId =
     , description = "" 
     , password = ""
     , uuid = ""
-    , tag = ""-- "Committee Member/Safety boat assessed"  (but it only contains a single tag)
+    , tag1 = if length (tags summary) > 0 then tags summary !! 0 else ""
+    , tag2 = if length (tags summary) > 1 then tags summary !! 1 else ""
+    , tag3 = if length (tags summary) > 2 then tags summary !! 2 else ""
     , subs_paid_by = ""
     , invoices_paid_by = ""
     , affiliate_code = ""
@@ -367,6 +393,7 @@ createChildEntry member theName =
     , membership_started = membershipStarted member
     , membership_type = membershipType member
     , membership_is_primary = False
+    , tags = isLocalTag member
   }
 
 -- createExportField 
@@ -382,7 +409,7 @@ readCSVLines filePath = do
 
 main :: IO ()
 main = do
-    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB11Nov2019Modified.csv"
+    csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB14Jan2020CencrModified.csv"
     let filteredBlankLines = V.filter (\member -> not $ T.null (adultNames member)) csvLines
     let groupedMembers = groupByMembership filteredBlankLines
     let groupedTranslatedMembers = translateMembers groupedMembers
