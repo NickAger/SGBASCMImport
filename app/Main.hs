@@ -79,7 +79,7 @@ data ExistingMemberFields = ExistingMemberFields {
 instance Csv.FromRecord ExistingMemberFields
 instance Csv.DefaultOrdered ExistingMemberFields
 
--- Export for SCM
+-- Import for SCM
 data ExportFields = ExportFields {
     uid :: !T.Text -- Only used to identify existing records if reimporting exported data that has been updated.  This is the Unique ID created when a Contact is initially added or imported.
   , title :: !T.Text -- IGNORE; not in existing data
@@ -178,16 +178,16 @@ exportBool True = "true"
 exportBool False = "false"
 
 pb2QualificationTag :: ExistingMemberFields -> [T.Text]
-pb2QualificationTag ExistingMemberFields{pb2valid = "A"} = ["PB2 certificate copy"]
-pb2QualificationTag ExistingMemberFields{pb2valid = "B"} = ["PB2 course completed"]
-pb2QualificationTag ExistingMemberFields{pb2valid = "C"} = ["PB2 claimed"]
-pb2QualificationTag ExistingMemberFields{pb2valid = "D"} = ["PB2 equivalent"]
-pb2QualificationTag ExistingMemberFields{pb2valid = "E"} = ["PB2 equivalent no helm"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "A"} = ["SB helm"] -- ["PB2 certificate copy"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "B"} = ["SB helm"] -- ["PB2 course completed"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "C"} = [] -- ["PB2 claimed"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "D"} = [] -- ["PB2 equivalent"]
+pb2QualificationTag ExistingMemberFields{pb2valid = "E"} = [] -- ["PB2 equivalent no helm"]
 pb2QualificationTag ExistingMemberFields{pb2valid = ""} = []
 pb2QualificationTag member = error $ "unknown PB2 qualification: '" ++ show member
 
 isPBBookable :: ExistingMemberFields -> [T.Text]
-isPBBookable ExistingMemberFields{pbReg = "1"} = ["PB Bookable"]
+isPBBookable ExistingMemberFields{pbReg = "1"} = ["Can Book PB"]
 isPBBookable ExistingMemberFields{pbReg = ""} = []
 isPBBookable member = error $ "unknown pbReg field: '" ++ show member
 
@@ -240,6 +240,7 @@ groupByMembership members =
 
 data ExportSummary = ExportSummary {
     full_name :: !T.Text
+  , dob :: !T.Text
   , email :: !T.Text
   , phone :: !T.Text
   , mobile :: !T.Text
@@ -280,6 +281,7 @@ translateMember :: ExistingMemberFields -> ExistingMemberFields -> ExportSummary
 translateMember primaryMember member =
   ExportSummary {
       full_name = adultNames member
+    , dob = ""
     , email = emailaddress member
     , phone = telephone primaryMember
     , mobile = (mobile :: ExistingMemberFields -> T.Text) member
@@ -309,7 +311,7 @@ prepareForExport summary memId =
     , gender = ""
     , company_name = ""
     , job_title = ""
-    , dob = ""
+    , dob = (dob :: ExportSummary -> T.Text) summary 
     , dod = ""
     , email = (email :: ExportSummary -> T.Text)  summary 
     , primary_email = (email :: ExportSummary -> T.Text) summary 
@@ -381,6 +383,7 @@ createChildEntry :: ExistingMemberFields -> T.Text -> ExportSummary
 createChildEntry member theName =
    ExportSummary {
       full_name = theName
+    , dob = "2010-01-01"
     , email = ""
     , phone = telephone member
     , mobile = ""
@@ -407,6 +410,39 @@ readCSVLines filePath = do
         undefined
       Right v -> return v
 
+
+exportContacts :: [ExportFields] -> IO ()
+exportContacts contacts = do
+    let contactsCsv = Csv.encodeDefaultOrderedByName contacts
+    BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedContacts.csv"  contactsCsv
+
+data RelationshipType = Parent | Spouse 
+  deriving (Show)
+
+instance Csv.ToField RelationshipType where
+  toField Parent = "Parent of"
+  toField Spouse = "Spouse of"
+
+relationshipId :: RelationshipType -> Int
+relationshipId Parent = 7029
+relationshipId Spouse = 7031
+
+data RelationshipFields = RelationshipFields {
+    contact_a :: !T.Text
+  , relationship :: RelationshipType
+  , contact_b :: !T.Text
+  , contact_a_id :: Int
+  , relationship_id :: Int
+  , contact_b_id :: Int
+} deriving (Generic, Show)
+
+
+exportRelationships :: [ExportFields] -> IO ()
+exportRelationships contacts = do
+  
+  return ()
+
+
 main :: IO ()
 main = do
     csvLines <- readCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/memDB14Jan2020CencrModified.csv"
@@ -415,7 +451,6 @@ main = do
     let groupedTranslatedMembers = translateMembers groupedMembers
     let flattenedTranslatedMembers = CM.join groupedTranslatedMembers
     let readyForExport = map (\(mem, memid) -> prepareForExport mem memid) (zip flattenedTranslatedMembers [1..])
-    let exportedData = Csv.encodeDefaultOrderedByName readyForExport
+    exportContacts readyForExport
 
-    BL.writeFile "/Users/nickager/programming/SGBASCMImport/exported.csv"  exportedData
     return ()
