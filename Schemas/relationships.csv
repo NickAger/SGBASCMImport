@@ -1,0 +1,5 @@
+contact_a,contact_b,relationship,contact_a_id,contact_b_id,relationship_id
+Nick Ager,Parent of,Sasha Ager,2107673,7029,2107717
+Olga Ager,Spouse of,,2107715,7031,2107729
+Nick Ager,Parent of,Ted Ager,2107673,7029,2107771
+Olga Ager,Parent of,Ted Ager,2107715,7029,2107771

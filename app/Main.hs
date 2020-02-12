@@ -14,7 +14,7 @@ import qualified Data.ByteString.Lazy as BL
 import GHC.Generics
 import Data.List
 import qualified Control.Monad as CM
-import Lib
+import BoatParkSpaces
 
 -- Export from Excel
 data ExistingMemberFields = ExistingMemberFields {
@@ -151,6 +151,7 @@ data ExportFields = ExportFields {
   , tag1 :: !T.Text -- "Committee Member/Safety boat assessed"  (but it only contains a single tag)
   , tag2 :: !T.Text -- uo to 10 tags per person.
   , tag3 :: !T.Text
+  , tag4 :: !T.Text
   , subs_paid_by :: !T.Text -- Expects Original ID of Contact (used when first importing data from legacy system).
   , invoices_paid_by :: !T.Text -- needs UID only when reimporting
   , affiliate_code :: !T.Text -- IGNORE
@@ -196,6 +197,11 @@ isLocalTag ExistingMemberFields{localMember = "1"} = ["Local Member"]
 isLocalTag ExistingMemberFields{localMember = ""} = []
 isLocalTag member = error $ "unknown localMember field: '" ++ show member
 
+hasOutboardSpace :: ExistingMemberFields -> [T.Text]
+hasOutboardSpace ExistingMemberFields{outboard = "1"} = ["Outboard Stored"]
+hasOutboardSpace ExistingMemberFields{outboard = ""} = []
+hasOutboardSpace member = error $ "unknown outboard field entry: '" ++ show member
+
 extractChildrensNames :: ExistingMemberFields -> [T.Text]
 extractChildrensNames member = map addLastName (splitChildrensNames member)
   where
@@ -226,7 +232,7 @@ lastName member
   | containsSeparator '.' = stripSeparator '.'
   | otherwise = theName
   where
-    theName = T.toTitle $ T.strip $ name member
+    theName = T.toTitle $ T.strip $ (name :: ExistingMemberFields -> T.Text) member
     containsSeparator sep = T.any (== sep) theName
     stripSeparator sep = T.takeWhile (/= sep) theName
 
@@ -236,7 +242,7 @@ groupByMembership members =
   let
     membersList = V.toList members
   in
-    groupBy (\member1 member2 -> (not $ T.null (name member1)) && (T.null (name member2))) membersList
+    groupBy (\member1 member2 -> (not $ T.null ((name :: ExistingMemberFields -> T.Text) member1)) && (T.null ((name :: ExistingMemberFields -> T.Text) member2))) membersList
 
 data ExportSummary = ExportSummary {
     full_name :: !T.Text
@@ -294,7 +300,7 @@ translateMember primaryMember member =
     , membership_started = membershipStarted primaryMember
     , membership_type = membershipType primaryMember
     , membership_is_primary = (primaryMember == member)
-    , tags = (pb2QualificationTag member) ++ (isPBBookable member) ++ (isLocalTag member)
+    , tags = (pb2QualificationTag member) ++ (isPBBookable member) ++ (isLocalTag member) ++ (hasOutboardSpace member)
   }
 
 prepareForExport :: ExportSummary -> Int -> ExportFields
@@ -370,6 +376,7 @@ prepareForExport summary memId =
     , tag1 = if length (tags summary) > 0 then tags summary !! 0 else ""
     , tag2 = if length (tags summary) > 1 then tags summary !! 1 else ""
     , tag3 = if length (tags summary) > 2 then tags summary !! 2 else ""
+    , tag4 = if length (tags summary) > 3 then tags summary !! 3 else ""
     , subs_paid_by = ""
     , invoices_paid_by = ""
     , affiliate_code = ""
@@ -401,6 +408,7 @@ createChildEntry member theName =
 
 -- createExportField 
 
+readCSVLines :: FilePath -> IO (V.Vector ExistingMemberFields)
 readCSVLines filePath = do
   csvData <- BL.readFile filePath
   case Csv.decode Csv.HasHeader {-Csv.NoHeader-} csvData  :: Either String (V.Vector ExistingMemberFields) of
@@ -415,6 +423,8 @@ exportContacts :: [ExportFields] -> IO ()
 exportContacts contacts = do
     let contactsCsv = Csv.encodeDefaultOrderedByName contacts
     BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedContacts.csv"  contactsCsv
+
+--
 
 data RelationshipType = Parent | Spouse 
   deriving (Show)
@@ -439,9 +449,15 @@ data RelationshipFields = RelationshipFields {
 
 exportRelationships :: [ExportFields] -> IO ()
 exportRelationships contacts = do
-  
   return ()
 
+--
+
+exportRentableSpace :: IO ()
+exportRentableSpace = do
+  let spaces = createDinghySpaces ++ createQuarrySpaces ++ createCanoeRackSpaces ++ createInflatableRackSpaces ++ createLockerSpaces
+  let spacesCsv = Csv.encodeDefaultOrderedByName spaces
+  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedMooringDefinitions.csv"  spacesCsv  
 
 main :: IO ()
 main = do
@@ -452,5 +468,8 @@ main = do
     let flattenedTranslatedMembers = CM.join groupedTranslatedMembers
     let readyForExport = map (\(mem, memid) -> prepareForExport mem memid) (zip flattenedTranslatedMembers [1..])
     exportContacts readyForExport
+
+    exportRentableSpace
+
 
     return ()
