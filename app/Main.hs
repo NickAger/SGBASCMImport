@@ -280,6 +280,7 @@ data ExportSummary = ExportSummary {
   , membership_is_primary :: Bool
   , tags :: [T.Text]
   , boat_park_spaces :: [T.Text]
+  , contact_id :: Int
 } deriving (Generic, Show)
 
 translateMembers :: [[ExistingMemberFields]] -> [[ExportSummary]]
@@ -323,6 +324,7 @@ translateMember primaryMember member =
     , membership_is_primary = (primaryMember == member)
     , tags = (pb2QualificationTag member) ++ (isPBBookableTag member) ++ (isLocalTag member) ++ (hasOutboardSpaceTag member) ++ (has6ftLockerSpaceTag member) ++ (has3ftLockerSpaceTag)
     , boat_park_spaces = createBoatParkSpaces
+    , contact_id = -1
   }
   where
     createBoatParkSpaces = []
@@ -333,8 +335,8 @@ translateMember primaryMember member =
       ++ ([dinghyParkAndRackLocation5 member | not $ T.null $ dinghyParkAndRackLocation5 member])
       ++ ([dinghyParkAndRackLocation6 member | not $ T.null $ dinghyParkAndRackLocation6 member])
 
-prepareForExport :: ExportSummary -> Int -> ExportFields
-prepareForExport summary memId =
+prepareForExport :: ExportSummary ->  ExportFields
+prepareForExport summary =
   ExportFields {
       uid = ""
     , title = ""
@@ -397,7 +399,7 @@ prepareForExport summary memId =
     , mooring_until = ""
     , rya_number = ""
     , ya_number = ""
-    , original_id = memId
+    , original_id = contact_id summary
     , content = ""
     , summary = ""
     , description = ""
@@ -437,7 +439,11 @@ createChildEntry member theName =
     , membership_is_primary = False
     , tags = isLocalTag member
     , boat_park_spaces = []
+    , contact_id = -1
   }
+
+updateContactId :: Int -> ExportSummary -> ExportSummary
+updateContactId contactId summary = summary{ contact_id = contactId }
 
 -- createExportField 
 
@@ -488,7 +494,7 @@ exportRelationships contacts = do
 
 exportRentableSpace :: IO ()
 exportRentableSpace = do
-  let spaces = createDinghySpaces ++ createQuarrySpaces ++ createCanoeRackSpaces ++ createInflatableRackSpaces ++ createLockerSpaces
+  let spaces = createDinghySpaces ++ createQuarrySpaces ++ createCanoeRackSpaces ++ createInflatableRackSpaces
   let spacesCsv = Csv.encodeDefaultOrderedByName spaces
   BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedMooringDefinitions.csv"  spacesCsv
 
@@ -499,10 +505,12 @@ main = do
     let groupedMembers = groupByMembership filteredBlankLines
     let groupedTranslatedMembers = translateMembers groupedMembers
     let flattenedTranslatedMembers = CM.join groupedTranslatedMembers
-    let readyForExport = map (\(mem, memid) -> prepareForExport mem memid) (zip flattenedTranslatedMembers [1..])
+    let membersWithIds = map (\(mem, id) ->  updateContactId id mem) (zip flattenedTranslatedMembers [1..])
+    let readyForExport = map prepareForExport membersWithIds
     exportContacts readyForExport
 
     exportRentableSpace
 
+    exportMemberBoats membersWithIds
 
     return ()

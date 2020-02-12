@@ -277,28 +277,3 @@ createInflatableRackSpaces =
           , price = "Inflatable Rack"
           , original_id = nameId
         }
-
-{-
-Locker spaces
-L1 .. L8 (6ft locker)
-L9 .. L12 (3ft locker)
--}
-createLockerSpaces :: [MooringDefinitionSchemaFields]
-createLockerSpaces =
-  (map (createLocker "Lockers (6ft)" "Locker (6ft)") [1..8]) ++ (map (createLocker "Lockers (3ft)" "Locker (3ft)") [9..12])
-  where
-    createLocker :: T.Text -> T.Text -> Integer ->  MooringDefinitionSchemaFields
-    createLocker group price i = 
-      let 
-        nameId = T.pack $ "L" ++ show i
-      in
-        MooringDefinitionSchemaFields {
-            id = "" 
-          , name = nameId
-          , group = group
-          , _type  = "Shed / Undercover"
-          , note = ""
-          , price = price
-          , original_id = nameId
-        }
-
