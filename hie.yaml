@@ -1,0 +1,4 @@
+# See: https://github.com/haskell/haskell-ide-engine/issues/1541
+cradle:
+  stack:
+    component: "SGBASCMImport:lib"
