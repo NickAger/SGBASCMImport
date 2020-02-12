@@ -152,6 +152,7 @@ data ExportFields = ExportFields {
   , tag2 :: !T.Text -- uo to 10 tags per person.
   , tag3 :: !T.Text
   , tag4 :: !T.Text
+  , tag5 :: !T.Text
   , subs_paid_by :: !T.Text -- Expects Original ID of Contact (used when first importing data from legacy system).
   , invoices_paid_by :: !T.Text -- needs UID only when reimporting
   , affiliate_code :: !T.Text -- IGNORE
@@ -187,20 +188,37 @@ pb2QualificationTag ExistingMemberFields{pb2valid = "E"} = [] -- ["PB2 equivalen
 pb2QualificationTag ExistingMemberFields{pb2valid = ""} = []
 pb2QualificationTag member = error $ "unknown PB2 qualification: '" ++ show member
 
-isPBBookable :: ExistingMemberFields -> [T.Text]
-isPBBookable ExistingMemberFields{pbReg = "1"} = ["Can Book PB"]
-isPBBookable ExistingMemberFields{pbReg = ""} = []
-isPBBookable member = error $ "unknown pbReg field: '" ++ show member
+isPBBookableTag :: ExistingMemberFields -> [T.Text]
+isPBBookableTag ExistingMemberFields{pbReg = "1"} = ["Can Book PB"]
+isPBBookableTag ExistingMemberFields{pbReg = ""} = []
+isPBBookableTag member = error $ "unknown pbReg field: '" ++ show member
 
 isLocalTag :: ExistingMemberFields -> [T.Text]
 isLocalTag ExistingMemberFields{localMember = "1"} = ["Local Member"]
 isLocalTag ExistingMemberFields{localMember = ""} = []
 isLocalTag member = error $ "unknown localMember field: '" ++ show member
 
-hasOutboardSpace :: ExistingMemberFields -> [T.Text]
-hasOutboardSpace ExistingMemberFields{outboard = "1"} = ["Outboard Stored"]
-hasOutboardSpace ExistingMemberFields{outboard = ""} = []
-hasOutboardSpace member = error $ "unknown outboard field entry: '" ++ show member
+hasOutboardSpaceTag :: ExistingMemberFields -> [T.Text]
+hasOutboardSpaceTag ExistingMemberFields{outboard = "1"} = ["Outboard Stored"]
+hasOutboardSpaceTag ExistingMemberFields{outboard = ""} = []
+hasOutboardSpaceTag member = error $ "unknown outboard field entry: '" ++ show member
+
+-- L1 .. L8 (6ft locker)
+has6ftLockerSpaceTag :: ExistingMemberFields -> [T.Text]
+has6ftLockerSpaceTag ExistingMemberFields{locker = "L1"} = ["6ft locker"]
+has6ftLockerSpaceTag ExistingMemberFields{locker = "L2"} = ["6ft locker"]
+has6ftLockerSpaceTag ExistingMemberFields{locker = "L3"} = ["6ft locker"]
+has6ftLockerSpaceTag ExistingMemberFields{locker = "L4"} = ["6ft locker"]
+has6ftLockerSpaceTag ExistingMemberFields{locker = "L5"} = ["6ft locker"]
+has6ftLockerSpaceTag ExistingMemberFields{locker = "L6"} = ["6ft locker"]
+has6ftLockerSpaceTag _ = []
+
+-- L9 .. L12 (3ft locker)
+has3ftLockerSpaceTag :: ExistingMemberFields -> [T.Text]
+has3ftLockerSpaceTag ExistingMemberFields{locker = "L9"} = ["3ft locker"]
+has3ftLockerSpaceTag ExistingMemberFields{locker = "L10"} = ["3ft locker"]
+has3ftLockerSpaceTag ExistingMemberFields{locker = "L11"} = ["3ft locker"]
+has3ftLockerSpaceTag ExistingMemberFields{locker = "L12"} = ["3ft locker"]
 
 extractChildrensNames :: ExistingMemberFields -> [T.Text]
 extractChildrensNames member = map addLastName (splitChildrensNames member)
@@ -245,7 +263,8 @@ groupByMembership members =
     groupBy (\member1 member2 -> (not $ T.null ((name :: ExistingMemberFields -> T.Text) member1)) && (T.null ((name :: ExistingMemberFields -> T.Text) member2))) membersList
 
 data ExportSummary = ExportSummary {
-    full_name :: !T.Text
+    lastname :: !T.Text
+  , full_name :: !T.Text
   , dob :: !T.Text
   , email :: !T.Text
   , phone :: !T.Text
@@ -260,6 +279,7 @@ data ExportSummary = ExportSummary {
   , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
   , membership_is_primary :: Bool
   , tags :: [T.Text]
+  , boat_park_spaces :: [T.Text]
 } deriving (Generic, Show)
 
 translateMembers :: [[ExistingMemberFields]] -> [[ExportSummary]]
@@ -286,7 +306,8 @@ translateMembers members =
 translateMember :: ExistingMemberFields -> ExistingMemberFields -> ExportSummary
 translateMember primaryMember member =
   ExportSummary {
-      full_name = adultNames member
+      lastname = (name :: ExistingMemberFields -> T.Text) member
+    , full_name = adultNames member
     , dob = ""
     , email = emailaddress member
     , phone = telephone primaryMember
@@ -300,8 +321,17 @@ translateMember primaryMember member =
     , membership_started = membershipStarted primaryMember
     , membership_type = membershipType primaryMember
     , membership_is_primary = (primaryMember == member)
-    , tags = (pb2QualificationTag member) ++ (isPBBookable member) ++ (isLocalTag member) ++ (hasOutboardSpace member)
+    , tags = (pb2QualificationTag member) ++ (isPBBookableTag member) ++ (isLocalTag member) ++ (hasOutboardSpaceTag member) ++ (has6ftLockerSpaceTag member) ++ (has3ftLockerSpaceTag)
+    , boat_park_spaces = createBoatParkSpaces
   }
+  where
+    createBoatParkSpaces = []
+      ++ ([dinghyParkAndRackLocation1 member | not $ T.null $ dinghyParkAndRackLocation1 member])
+      ++ ([dinghyParkAndRackLocation2 member | not $ T.null $ dinghyParkAndRackLocation2 member])
+      ++ ([dinghyParkAndRackLocation3 member | not $ T.null $ dinghyParkAndRackLocation3 member])
+      ++ ([dinghyParkAndRackLocation4 member | not $ T.null $ dinghyParkAndRackLocation4 member])
+      ++ ([dinghyParkAndRackLocation5 member | not $ T.null $ dinghyParkAndRackLocation5 member])
+      ++ ([dinghyParkAndRackLocation6 member | not $ T.null $ dinghyParkAndRackLocation6 member])
 
 prepareForExport :: ExportSummary -> Int -> ExportFields
 prepareForExport summary memId =
@@ -311,18 +341,18 @@ prepareForExport summary memId =
     , first_name = ""
     , middle_name = ""
     , last_name = ""
-    , full_name = (full_name :: ExportSummary -> T.Text) summary 
+    , full_name = (full_name :: ExportSummary -> T.Text) summary
     , suffix = ""
     , nickname = ""
     , gender = ""
     , company_name = ""
     , job_title = ""
-    , dob = (dob :: ExportSummary -> T.Text) summary 
+    , dob = (dob :: ExportSummary -> T.Text) summary
     , dod = ""
-    , email = (email :: ExportSummary -> T.Text)  summary 
-    , primary_email = (email :: ExportSummary -> T.Text) summary 
-    , phone = (phone :: ExportSummary -> T.Text) summary 
-    , mobile = (mobile :: ExportSummary -> T.Text) summary 
+    , email = (email :: ExportSummary -> T.Text)  summary
+    , primary_email = (email :: ExportSummary -> T.Text) summary
+    , phone = (phone :: ExportSummary -> T.Text) summary
+    , mobile = (mobile :: ExportSummary -> T.Text) summary
     , fax = ""
     , url = ""
     , twitter = ""
@@ -370,26 +400,28 @@ prepareForExport summary memId =
     , original_id = memId
     , content = ""
     , summary = ""
-    , description = "" 
+    , description = ""
     , password = ""
     , uuid = ""
     , tag1 = if length (tags summary) > 0 then tags summary !! 0 else ""
     , tag2 = if length (tags summary) > 1 then tags summary !! 1 else ""
     , tag3 = if length (tags summary) > 2 then tags summary !! 2 else ""
-    , tag4 = if length (tags summary) > 3 then tags summary !! 3 else ""
+    , tag4 = if length (tags summary) > 3 then tags summary !! 3 else ""  
+    , tag5 = if length (tags summary) > 4 then tags summary !! 4 else ""
     , subs_paid_by = ""
     , invoices_paid_by = ""
     , affiliate_code = ""
-    , login_email = (email :: ExportSummary -> T.Text) summary 
+    , login_email = (email :: ExportSummary -> T.Text) summary
     , ice_name = ""
     , ice_number = ""
     , medical_info = ""
-  }  
+  }
 
 createChildEntry :: ExistingMemberFields -> T.Text -> ExportSummary
 createChildEntry member theName =
    ExportSummary {
-      full_name = theName
+      lastname = (name :: ExistingMemberFields -> T.Text) member
+    , full_name = theName
     , dob = "2010-01-01"
     , email = ""
     , phone = telephone member
@@ -404,6 +436,7 @@ createChildEntry member theName =
     , membership_type = membershipType member
     , membership_is_primary = False
     , tags = isLocalTag member
+    , boat_park_spaces = []
   }
 
 -- createExportField 
@@ -426,7 +459,7 @@ exportContacts contacts = do
 
 --
 
-data RelationshipType = Parent | Spouse 
+data RelationshipType = Parent | Spouse
   deriving (Show)
 
 instance Csv.ToField RelationshipType where
@@ -457,7 +490,7 @@ exportRentableSpace :: IO ()
 exportRentableSpace = do
   let spaces = createDinghySpaces ++ createQuarrySpaces ++ createCanoeRackSpaces ++ createInflatableRackSpaces ++ createLockerSpaces
   let spacesCsv = Csv.encodeDefaultOrderedByName spaces
-  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedMooringDefinitions.csv"  spacesCsv  
+  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedMooringDefinitions.csv"  spacesCsv
 
 main :: IO ()
 main = do
