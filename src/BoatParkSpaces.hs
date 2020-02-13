@@ -9,6 +9,32 @@ import GHC.Generics
 import qualified Data.Csv as Csv
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL
+import Data.Maybe
+import qualified Control.Monad as CM
+
+--
+
+data ExportSummary = ExportSummary {
+    lastname :: !T.Text
+  , full_name :: !T.Text
+  , dob :: !T.Text
+  , email :: !T.Text
+  , phone :: !T.Text
+  , mobile :: !T.Text
+  , street :: !T.Text -- address1
+  , locality :: !T.Text -- address2
+  , city :: !T.Text -- town
+  , county :: !T.Text -- county
+  , postcode :: !T.Text --  postcode  
+  , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
+  , membership_number :: Int -- same number if part of same membership
+  , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
+  , membership_is_primary :: Bool
+  , tags :: [T.Text]
+  , boat_park_spaces :: [T.Text]
+  , contact_id :: Int
+} deriving (Generic, Show)
+
 
 -- Export to SCM
 data BoatSchemaFields = BoatSchemaFields {
@@ -124,7 +150,7 @@ createSCMBoat mooringId boatName ownerName contactid description =
 
 -- Export to SCM
 data MooringAllocationSchemaFields = MooringAllocationSchemaFields {
-      membership_number :: !T.Text
+      membership_number :: Int
     , original_id :: !T.Text
     , title :: !T.Text
     , first_name :: !T.Text
@@ -225,7 +251,7 @@ createQuarrySpaces =
         MooringDefinitionSchemaFields {
             id = ""
           , name = nameId
-          , group = "Quary Spaces"
+          , group = "Quarry Spaces"
           , _type  = "Hard standing"
           , note = ""
           , price = "Dinghy Park Space"
@@ -277,3 +303,126 @@ createInflatableRackSpaces =
           , price = "Inflatable Rack"
           , original_id = nameId
         }
+
+---
+
+lookupDescription :: V.Vector BoatsImportFields -> T.Text -> T.Text
+lookupDescription boats space =
+  let
+    boat = V.find (\boat -> (nameId boat) == space) boats
+  in
+    boatInfo (fromJust boat)
+
+exportBoats :: [BoatSchemaFields] -> IO ()
+exportBoats boats = do
+  let boatsCsv = Csv.encodeDefaultOrderedByName boats
+  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedData/exportedBoats.csv"  boatsCsv
+
+exportMoorings :: [MooringAllocationSchemaFields] -> IO ()
+exportMoorings moorings = do
+  let mooringsCsv = Csv.encodeDefaultOrderedByName moorings
+  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedData/exportedMoorings.csv"  mooringsCsv
+
+
+exportMemberBoats :: [ExportSummary] -> IO ()
+exportMemberBoats members = do
+  let membersWithBoats = filter (\member -> not $ null $ boat_park_spaces member) members
+  boats <- readBoatsCSVLines "/Users/nickager/programming/SGBASCMImport/originalData/boats.csv"
+  let boatsAllocationTupleArray =  membersWithBoats >>= (exportSpaces boats)
+  let (scmBoats, scmMoorings) = unzip boatsAllocationTupleArray
+  exportBoats scmBoats
+  exportMoorings scmMoorings
+  where
+    exportSpaces :: V.Vector BoatsImportFields -> ExportSummary ->  [(BoatSchemaFields, MooringAllocationSchemaFields)]
+    exportSpaces boats member  = 
+      map (\(space, idx) -> exportBoat (T.unpack space) (lookupDescription boats space) idx member) $ zip (boat_park_spaces member) [1..]
+
+
+exportBoat :: String -> T.Text -> Int -> ExportSummary -> (BoatSchemaFields, MooringAllocationSchemaFields)
+exportBoat space@('D':_) = exportDinghy (T.pack space) "Dinghy Park Spaces" 
+exportBoat space@('R':_) = exportDinghy (T.pack space) "Quarry Spaces" 
+exportBoat space@('T':_) = exportInflatable (T.pack space) 
+exportBoat space@('K':_) = exportCanoe (T.pack space) 
+exportBoat _ = error "Unrecognised craft"
+
+exportDinghy :: T.Text -> T.Text -> T.Text -> Int -> ExportSummary -> (BoatSchemaFields, MooringAllocationSchemaFields)
+exportDinghy space group description idx member = 
+  let
+    dinghyName = (lastname member) `T.append`  "-Dinghy" `T.append`  (T.pack $ show idx)
+    scmBoat = createSCMBoat space dinghyName (full_name member) (T.pack $ show $ contact_id member) description
+    firstLast = T.breakOn " " (full_name member)
+    mooringAllocation = 
+      MooringAllocationSchemaFields {
+          membership_number = (membership_number :: ExportSummary -> Int) member
+        , original_id = space `T.append` "-" `T.append` (lastname member) 
+        , title = ""
+        , first_name = fst firstLast
+        , last_name = snd firstLast
+        , sail_number = ""
+        , boat = dinghyName
+        , boat_original_id = dinghyName
+        , mooring_group = group
+        , mooring_space = space
+        , mooring_space_original_id = space
+        , from = "2019-03-01"
+        , until = "2020-02-28"
+        , mooring_price = "Dinghy Park Space"
+        , import_non_billable = ""
+      }
+    in
+      (scmBoat, mooringAllocation)
+
+exportCanoe :: T.Text -> T.Text -> Int -> ExportSummary -> (BoatSchemaFields, MooringAllocationSchemaFields)
+exportCanoe space description idx member = 
+  let
+    canoeName = (lastname member) `T.append` "-Canoe" `T.append` (T.pack $ show idx)
+    scmBoat = createSCMBoat space canoeName (full_name member) (T.pack $ show $contact_id member) description
+    firstLast = T.breakOn " " (full_name member)
+    mooringAllocation = 
+      MooringAllocationSchemaFields {
+          membership_number = (membership_number :: ExportSummary -> Int) member
+        , original_id = space `T.append` "-" `T.append` (lastname member) 
+        , title = ""
+        , first_name = fst firstLast
+        , last_name = snd firstLast
+        , sail_number = ""
+        , boat = canoeName
+        , boat_original_id = canoeName
+        , mooring_group = "Canoe racks"
+        , mooring_space = space
+        , mooring_space_original_id = space
+        , from = "2019-03-01"
+        , until = "2020-02-28"
+        , mooring_price = "Canoe Rack"
+        , import_non_billable = ""
+      }
+    in
+      (scmBoat, mooringAllocation)
+
+exportInflatable :: T.Text -> T.Text -> Int -> ExportSummary -> (BoatSchemaFields, MooringAllocationSchemaFields)
+exportInflatable space description idx member = 
+  let
+    inflatableName = (lastname member) `T.append` "-Inflatable" `T.append` (T.pack $ show idx)
+    scmBoat = createSCMBoat space inflatableName (full_name member) (T.pack $ show $contact_id member) description
+    firstLast = T.breakOn " " (full_name member)
+    mooringAllocation = 
+      MooringAllocationSchemaFields {
+          membership_number = (membership_number :: ExportSummary -> Int) member
+        , original_id = space `T.append` "-" `T.append` (lastname member) 
+        , title = ""
+        , first_name = fst firstLast
+        , last_name = snd firstLast
+        , sail_number = ""
+        , boat = inflatableName
+        , boat_original_id = inflatableName
+        , mooring_group = "Inflatable rack storage"
+        , mooring_space = space
+        , mooring_space_original_id = space
+        , from = "2019-03-01"
+        , until = "2020-02-28"
+        , mooring_price = "Inflatable Rack"
+        , import_non_billable = ""
+      }
+    in
+      (scmBoat, mooringAllocation)
+

@@ -26,8 +26,8 @@ data ExistingMemberFields = ExistingMemberFields {
   , clubBoat :: !T.Text -- "1 or blank"
   , dp :: !T.Text -- "dinghy park; 1,2 or blank - number of dinghy park spaces paid for"
   , rackspace :: !T.Text -- "rack space; 1,2 or blank - number of rack spaces paid for"
-  , locker :: !T.Text -- "1 or blank"
-  , outboard :: !T.Text -- "outboard; 1 or blank"
+  , locker1:: !T.Text -- "1 or blank"
+  , outboard1 :: !T.Text -- "outboard; 1 or blank"
   , blank1 :: !T.Text
   , dinghyParkAndRackLocation1 :: !T.Text -- D32, K18
   , dinghyParkAndRackLocation2 :: !T.Text -- D32, K18
@@ -47,8 +47,8 @@ data ExistingMemberFields = ExistingMemberFields {
   , blank4 :: !T.Text -- the whole column is "1" why??
   , childrensNames :: !T.Text -- "Sasha, Ted" (but lots missing) and differing spacing between sometimes "&", sometimes ",", sometimes a space
   , quantityOfChildren :: !T.Text -- 4, 3, 2, 1 or blank
-  , locker :: !T.Text -- "blank or L9"
-  , outboard :: !T.Text -- "OB" or "July '19"
+  , locker2 :: !T.Text -- "blank or L9"
+  , outboard2 :: !T.Text -- "OB" or "July '19"
   , flt1 :: !T.Text -- 1 or blank not sure what it means
   , duty2015 :: !T.Text -- "O", "OOC", "C", "CC", "H", "HH",  "O", "OO", "OOO", "OC"
   , duty2016 :: !T.Text -- "O", "OOC", "C", "CC", "H", "HH",  "O", "OO", "OOO", "OC"
@@ -179,6 +179,11 @@ exportBool :: Bool -> T.Text
 exportBool True = "true"
 exportBool False = "false"
 
+hasPaidBoatUseFeedTag :: ExistingMemberFields -> [T.Text]
+hasPaidBoatUseFeedTag ExistingMemberFields{clubBoat = "1"} = ["Paid boat use"]
+hasPaidBoatUseFeedTag ExistingMemberFields{clubBoat = ""} = []
+hasPaidBoatUseFeedTag member = error $ "unknown clubBoat field: '" ++ show member
+
 pb2QualificationTag :: ExistingMemberFields -> [T.Text]
 pb2QualificationTag ExistingMemberFields{pb2valid = "A"} = ["SB helm"] -- ["PB2 certificate copy"]
 pb2QualificationTag ExistingMemberFields{pb2valid = "B"} = ["SB helm"] -- ["PB2 course completed"]
@@ -199,26 +204,29 @@ isLocalTag ExistingMemberFields{localMember = ""} = []
 isLocalTag member = error $ "unknown localMember field: '" ++ show member
 
 hasOutboardSpaceTag :: ExistingMemberFields -> [T.Text]
-hasOutboardSpaceTag ExistingMemberFields{outboard = "1"} = ["Outboard Stored"]
-hasOutboardSpaceTag ExistingMemberFields{outboard = ""} = []
-hasOutboardSpaceTag member = error $ "unknown outboard field entry: '" ++ show member
+hasOutboardSpaceTag ExistingMemberFields{outboard1 = "1"} = ["Outboard Stored"]
+hasOutboardSpaceTag ExistingMemberFields{outboard1 = ""} = []
+hasOutboardSpaceTag member = error $ "unknown outboard field entry: '" ++ (T.unpack $ outboard1 member) ++ "' " ++ show member
 
 -- L1 .. L8 (6ft locker)
-has6ftLockerSpaceTag :: ExistingMemberFields -> [T.Text]
-has6ftLockerSpaceTag ExistingMemberFields{locker = "L1"} = ["6ft locker"]
-has6ftLockerSpaceTag ExistingMemberFields{locker = "L2"} = ["6ft locker"]
-has6ftLockerSpaceTag ExistingMemberFields{locker = "L3"} = ["6ft locker"]
-has6ftLockerSpaceTag ExistingMemberFields{locker = "L4"} = ["6ft locker"]
-has6ftLockerSpaceTag ExistingMemberFields{locker = "L5"} = ["6ft locker"]
-has6ftLockerSpaceTag ExistingMemberFields{locker = "L6"} = ["6ft locker"]
-has6ftLockerSpaceTag _ = []
-
 -- L9 .. L12 (3ft locker)
-has3ftLockerSpaceTag :: ExistingMemberFields -> [T.Text]
-has3ftLockerSpaceTag ExistingMemberFields{locker = "L9"} = ["3ft locker"]
-has3ftLockerSpaceTag ExistingMemberFields{locker = "L10"} = ["3ft locker"]
-has3ftLockerSpaceTag ExistingMemberFields{locker = "L11"} = ["3ft locker"]
-has3ftLockerSpaceTag ExistingMemberFields{locker = "L12"} = ["3ft locker"]
+hasLockerSpaceTag :: ExistingMemberFields -> [T.Text]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L1"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L2"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L3"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L4"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L5"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L6"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L7"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L8"} = ["6ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L9"} = ["3ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L10"} = ["3ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L11"} = ["3ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = "L12"} = ["3ft locker"]
+hasLockerSpaceTag ExistingMemberFields{locker2 = ""} = []
+hasLockerSpaceTag member = error $ "unknown locker field entry: '" ++ (T.unpack $ locker2 member) ++ "' " ++ show member
+
+
 
 extractChildrensNames :: ExistingMemberFields -> [T.Text]
 extractChildrensNames member = map addLastName (splitChildrensNames member)
@@ -262,27 +270,6 @@ groupByMembership members =
   in
     groupBy (\member1 member2 -> (not $ T.null ((name :: ExistingMemberFields -> T.Text) member1)) && (T.null ((name :: ExistingMemberFields -> T.Text) member2))) membersList
 
-data ExportSummary = ExportSummary {
-    lastname :: !T.Text
-  , full_name :: !T.Text
-  , dob :: !T.Text
-  , email :: !T.Text
-  , phone :: !T.Text
-  , mobile :: !T.Text
-  , street :: !T.Text -- address1
-  , locality :: !T.Text -- address2
-  , city :: !T.Text -- town
-  , county :: !T.Text -- county
-  , postcode :: !T.Text --  postcode  
-  , membership_started :: !T.Text -- JOIN though its year so it will need to be put into dd/mm/yyyy
-  , membership_number :: Int -- same number if part of same membership
-  , membership_type :: !T.Text  -- "Joint", "Family Membership", "Single" - translate from "Typ"
-  , membership_is_primary :: Bool
-  , tags :: [T.Text]
-  , boat_park_spaces :: [T.Text]
-  , contact_id :: Int
-} deriving (Generic, Show)
-
 translateMembers :: [[ExistingMemberFields]] -> [[ExportSummary]]
 translateMembers members =
     map (\(mems, membershipId) -> updateMembers membershipId mems) translatedMembershipsWithId
@@ -322,7 +309,7 @@ translateMember primaryMember member =
     , membership_started = membershipStarted primaryMember
     , membership_type = membershipType primaryMember
     , membership_is_primary = (primaryMember == member)
-    , tags = (pb2QualificationTag member) ++ (isPBBookableTag member) ++ (isLocalTag member) ++ (hasOutboardSpaceTag member) ++ (has6ftLockerSpaceTag member) ++ (has3ftLockerSpaceTag)
+    , tags = (hasPaidBoatUseFeedTag member) ++ (pb2QualificationTag member) ++ (isPBBookableTag member) ++ (isLocalTag member) ++ (hasOutboardSpaceTag member) ++ (hasLockerSpaceTag member)
     , boat_park_spaces = createBoatParkSpaces
     , contact_id = -1
   }
@@ -342,7 +329,7 @@ prepareForExport summary =
     , title = ""
     , first_name = ""
     , middle_name = ""
-    , last_name = ""
+    , last_name = lastname summary
     , full_name = (full_name :: ExportSummary -> T.Text) summary
     , suffix = ""
     , nickname = ""
@@ -461,7 +448,7 @@ readCSVLines filePath = do
 exportContacts :: [ExportFields] -> IO ()
 exportContacts contacts = do
     let contactsCsv = Csv.encodeDefaultOrderedByName contacts
-    BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedContacts.csv"  contactsCsv
+    BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedData/exportedContacts.csv"  contactsCsv
 
 --
 
@@ -496,7 +483,7 @@ exportRentableSpace :: IO ()
 exportRentableSpace = do
   let spaces = createDinghySpaces ++ createQuarrySpaces ++ createCanoeRackSpaces ++ createInflatableRackSpaces
   let spacesCsv = Csv.encodeDefaultOrderedByName spaces
-  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedMooringDefinitions.csv"  spacesCsv
+  BL.writeFile "/Users/nickager/programming/SGBASCMImport/exportedData/exportedMooringDefinitions.csv"  spacesCsv
 
 main :: IO ()
 main = do
@@ -513,4 +500,4 @@ main = do
 
     exportMemberBoats membersWithIds
 
-    return ()
+    putStrLn "completed export"
