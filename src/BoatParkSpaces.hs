@@ -151,7 +151,7 @@ createSCMBoat mooringId boatName ownerName contactid description =
 -- Export to SCM
 data MooringAllocationSchemaFields = MooringAllocationSchemaFields {
       membership_number :: Int
-    , original_id :: !T.Text
+    , original_id :: Int
     , title :: !T.Text
     , first_name :: !T.Text
     , last_name :: !T.Text
@@ -354,7 +354,7 @@ exportDinghy space group description idx member =
     mooringAllocation = 
       MooringAllocationSchemaFields {
           membership_number = (membership_number :: ExportSummary -> Int) member
-        , original_id = space `T.append` "-" `T.append` (lastname member) 
+        , original_id = contact_id member
         , title = ""
         , first_name = fst firstLast
         , last_name = snd firstLast
@@ -381,7 +381,7 @@ exportCanoe space description idx member =
     mooringAllocation = 
       MooringAllocationSchemaFields {
           membership_number = (membership_number :: ExportSummary -> Int) member
-        , original_id = space `T.append` "-" `T.append` (lastname member) 
+        , original_id = contact_id member 
         , title = ""
         , first_name = fst firstLast
         , last_name = snd firstLast
@@ -408,7 +408,7 @@ exportInflatable space description idx member =
     mooringAllocation = 
       MooringAllocationSchemaFields {
           membership_number = (membership_number :: ExportSummary -> Int) member
-        , original_id = space `T.append` "-" `T.append` (lastname member) 
+        , original_id = contact_id member 
         , title = ""
         , first_name = fst firstLast
         , last_name = snd firstLast
